@@ -18,10 +18,11 @@ A comprehensive, step-by-step installation and troubleshooting guide for running
 - [10. Configuring User PATH](#10-configuring-user-path)
 - [11. Fixing KDE Plasma Theme & Color Scheme Incompatibilities (Unreadable UI Text)](#11-fixing-kde-plasma-theme--color-scheme-incompatibilities-unreadable-ui-text)
 - [12. Creating the Permanent Packet Tracer Command](#12-creating-the-permanent-packet-tracer-command)
-- [13. Final Directory Structure](#13-final-directory-structure)
-- [14. Troubleshooting Reference Table](#14-troubleshooting-reference-table)
-- [15. Uninstallation](#15-uninstallation)
-- [16. Security and Licensing Disclaimer](#16-security-and-licensing-disclaimer)
+- [13. Creating the Desktop Application Launcher (.desktop Entry with Icon)](#13-creating-the-desktop-application-launcher-desktop-entry-with-icon)
+- [14. Final Directory Structure](#14-final-directory-structure)
+- [15. Troubleshooting Reference Table](#15-troubleshooting-reference-table)
+- [16. Uninstallation](#16-uninstallation)
+- [17. Security and Licensing Disclaimer](#17-security-and-licensing-disclaimer)
 
 ---
 
@@ -360,7 +361,72 @@ packettracer
 
 ---
 
-## 13. Final Directory Structure
+## 13. Creating the Desktop Application Launcher (.desktop Entry with Icon)
+
+For the best user experience on KDE Plasma (or GNOME / XFCE), you can integrate Packet Tracer directly into your application launcher so it appears when pressing the **Super** (Windows) key, complete with the official Cisco Packet Tracer icon.
+
+### Step 13.1: Create the Clean Binary Launcher
+Instead of relying on a shell-only alias, create an executable wrapper in `~/bin/packettracer`:
+
+```bash
+cat > ~/bin/packettracer <<'EOF'
+#!/bin/sh
+exec env \
+  XDG_CURRENT_DESKTOP="" \
+  KDE_FULL_SESSION="" \
+  KDE_SESSION_VERSION="" \
+  QT_QPA_PLATFORMTHEME="" \
+  QT_STYLE_OVERRIDE="Fusion" \
+  PATH="$HOME/bin:$PATH" \
+  "$HOME/Applications/packettracer.AppImage" "$@"
+EOF
+
+chmod +x ~/bin/packettracer
+```
+
+### Step 13.2: Extract the Official High-Resolution Icon
+The official Packet Tracer icon is embedded inside the AppImage. Extract it using `7z`:
+
+```bash
+mkdir -p ~/.local/share/icons
+7z e ~/Applications/packettracer.AppImage app.png -o"$HOME/.local/share/icons/" -y
+mv ~/.local/share/icons/app.png ~/.local/share/icons/cisco-packet-tracer.png
+```
+
+### Step 13.3: Create the Desktop Entry
+Create `~/.local/share/applications/cisco-packet-tracer.desktop`:
+
+```ini
+cat > ~/.local/share/applications/cisco-packet-tracer.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Cisco Packet Tracer
+GenericName=Network Simulator
+Comment=Cisco Packet Tracer Networking Simulation Tool
+Exec=/home/USERNAME/bin/packettracer %f
+Icon=/home/USERNAME/.local/share/icons/cisco-packet-tracer.png
+Terminal=false
+Categories=Education;Science;Network;
+MimeType=application/x-pkt;application/x-pka;application/x-pkz;application/x-pksz;
+StartupWMClass=PacketTracer
+Keywords=cisco;packet;tracer;network;simulation;
+EOF
+```
+*(Replace `USERNAME` with your actual Linux username, or use `$USER`).*
+
+### Step 13.4: Update KDE System Configuration Cache
+Force KDE Plasma to index the new application immediately:
+
+```bash
+update-desktop-database ~/.local/share/applications
+kbuildsycoca6
+```
+
+Now, pressing **Super** and typing `packet` shows **Cisco Packet Tracer** with its official icon and launches it with all browser and theme fixes applied!
+
+---
+
+## 14. Final Directory Structure
 
 The complete filesystem layout for this setup:
 
@@ -371,12 +437,19 @@ The complete filesystem layout for this setup:
 │   └── packettracer.AppImage                     # Executable user AppImage (755)
 │
 ├── bin/
-│   └── kde-open                                  # Browser redirection wrapper (755)
+│   ├── kde-open                                  # Browser redirection wrapper (755)
+│   └── packettracer                              # Permanent executable launcher (755)
+│
+├── .local/share/
+│   ├── applications/
+│   │   └── cisco-packet-tracer.desktop           # System application launcher entry
+│   └── icons/
+│       └── cisco-packet-tracer.png               # Official Cisco icon
 │
 ├── Downloads/
 │   └── CiscoPacketTracer_901_Ubuntu_64bit.deb    # Original downloaded installer
 │
-├── .bashrc                                       # Stores PATH export and permanent packettracer alias
+├── .bashrc                                       # Stores PATH export
 │
 └── .cache/
     └── yay/
@@ -390,7 +463,7 @@ The complete filesystem layout for this setup:
 
 ---
 
-## 14. Troubleshooting Reference Table
+## 15. Troubleshooting Reference Table
 
 | Symptom / Error | Root Cause | Solution |
 | :--- | :--- | :--- |
@@ -407,7 +480,7 @@ The complete filesystem layout for this setup:
 
 ---
 
-## 15. Uninstallation
+## 16. Uninstallation
 
 To completely remove Cisco Packet Tracer and all associated custom configurations:
 
@@ -421,13 +494,17 @@ yay -Rns packettracer
 rm ~/Applications/packettracer.AppImage
 ```
 
-### Step 3: Remove the Custom Browser Wrapper
+### Step 3: Remove Custom Wrappers and Desktop Entry
 ```bash
 rm ~/bin/kde-open
+rm ~/bin/packettracer
+rm ~/.local/share/applications/cisco-packet-tracer.desktop
+rm ~/.local/share/icons/cisco-packet-tracer.png
+update-desktop-database ~/.local/share/applications
 ```
 
 > [!CAUTION]
-> Do **not** delete the entire `~/Applications` or `~/bin` directories, as they may contain other custom applications or scripts. Only remove the specific files mentioned above.
+> Do **not** delete the entire `~/Applications`, `~/bin`, or `~/.local/share/` directories, as they contain other system applications and scripts. Only remove the specific files mentioned above.
 
 ### Step 4: Clean Up `.bashrc`
 Open `~/.bashrc` in your preferred text editor:
@@ -447,7 +524,7 @@ source ~/.bashrc
 
 ---
 
-## 16. Security and Licensing Disclaimer
+## 17. Security and Licensing Disclaimer
 
 - **Proprietary Software:** Cisco Packet Tracer is the intellectual property of Cisco Systems, Inc. All rights reserved.
 - **Authorized Acquisition:** Users must download the installation archive directly through Cisco Networking Academy ([netacad.com](https://www.netacad.com/)) using an authorized account.
