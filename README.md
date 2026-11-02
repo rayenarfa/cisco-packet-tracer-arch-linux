@@ -1,6 +1,6 @@
 # Cisco Packet Tracer on Arch Linux
 
-A comprehensive, step-by-step installation and troubleshooting guide for running **Cisco Packet Tracer 9.0.1** on **Arch Linux** using the AUR package and AppImage, including the critical fix for KDE Plasma / Qt browser authentication failures.
+A comprehensive, step-by-step installation and troubleshooting guide for running **Cisco Packet Tracer 9.0.1** on **Arch Linux** using the AUR package and AppImage, including critical fixes for KDE Plasma / Qt browser authentication failures and unreadable dark-theme UI color schemes.
 
 ---
 
@@ -14,13 +14,14 @@ A comprehensive, step-by-step installation and troubleshooting guide for running
 - [6. First Launch & Authentication Behavior](#6-first-launch--authentication-behavior)
 - [7. Installing Supporting Utilities](#7-installing-supporting-utilities)
 - [8. Configuring Firefox as Default Browser](#8-configuring-firefox-as-default-browser)
-- [9. Fixing the KDE and Qt Compatibility Conflict](#9-fixing-the-kde-and-qt-compatibility-conflict)
+- [9. Fixing the KDE and Qt Compatibility Conflict (Browser Authentication)](#9-fixing-the-kde-and-qt-compatibility-conflict-browser-authentication)
 - [10. Configuring User PATH](#10-configuring-user-path)
-- [11. Creating the Permanent Packet Tracer Command](#11-creating-the-permanent-packet-tracer-command)
-- [12. Final Directory Structure](#12-final-directory-structure)
-- [13. Troubleshooting Reference Table](#13-troubleshooting-reference-table)
-- [14. Uninstallation](#14-uninstallation)
-- [15. Security and Licensing Disclaimer](#15-security-and-licensing-disclaimer)
+- [11. Fixing KDE Plasma Theme & Color Scheme Incompatibilities (Unreadable UI Text)](#11-fixing-kde-plasma-theme--color-scheme-incompatibilities-unreadable-ui-text)
+- [12. Creating the Permanent Packet Tracer Command](#12-creating-the-permanent-packet-tracer-command)
+- [13. Final Directory Structure](#13-final-directory-structure)
+- [14. Troubleshooting Reference Table](#14-troubleshooting-reference-table)
+- [15. Uninstallation](#15-uninstallation)
+- [16. Security and Licensing Disclaimer](#16-security-and-licensing-disclaimer)
 
 ---
 
@@ -220,10 +221,10 @@ Firefox will successfully open the test page. However, clicking the login button
 
 ---
 
-## 9. Fixing the KDE and Qt Compatibility Conflict
+## 9. Fixing the KDE and Qt Compatibility Conflict (Browser Authentication)
 
 > [!IMPORTANT]
-> **This is the core resolution for Cisco authentication on Arch Linux with KDE Plasma.**
+> **This is the core resolution for Cisco browser authentication on Arch Linux with KDE Plasma.**
 
 ### The Root Cause
 When launching from Packet Tracer, inspecting stderr reveals:
@@ -276,18 +277,75 @@ which kde-open
 
 ---
 
-## 11. Creating the Permanent Packet Tracer Command
+## 11. Fixing KDE Plasma Theme & Color Scheme Incompatibilities (Unreadable UI Text)
 
-To ensure Packet Tracer always launches with the correct `PATH` hierarchy containing your browser wrapper, register an alias in `~/.bashrc`:
+### The Problem
+When running Packet Tracer 9.0.1 on KDE Plasma (particularly when using dark or custom color schemes), a severe Qt theme incompatibility occurs:
+- Certain configuration tabs display dark input fields with nearly invisible black/dark text labels.
+- Other dialogs render with mismatched, unreadable contrast.
+- Affected dialogs commonly include:
+  - **Router0 → Config → Routing → Static**
+  - **Router0 → Config → Routing → RIP**
+  - **Router0 → Config → Interface settings**
+
+Rather than altering your system-wide KDE Plasma theme every time you study networking, you can force Packet Tracer to render using Qt's neutral **Fusion** style while masking KDE desktop environment variables.
+
+### Step 11.1: Test the Environment Wrapper
+Close Packet Tracer completely, then execute this test command in your terminal:
 
 ```bash
-echo 'alias packettracer='\''PATH="$HOME/bin:$PATH" "$HOME/Applications/packettracer.AppImage"'\''' >> ~/.bashrc
+env \
+  XDG_CURRENT_DESKTOP="" \
+  KDE_FULL_SESSION="" \
+  KDE_SESSION_VERSION="" \
+  QT_QPA_PLATFORMTHEME="" \
+  QT_STYLE_OVERRIDE="Fusion" \
+  PATH="$HOME/bin:$PATH" \
+  "$HOME/Applications/packettracer.AppImage"
+```
+
+#### What Each Variable Accomplishes:
+
+| Variable | Purpose |
+| :--- | :--- |
+| `XDG_CURRENT_DESKTOP=""` | Prevents Packet Tracer from detecting KDE Plasma. |
+| `KDE_FULL_SESSION=""` | Prevents KDE session-level styling integration. |
+| `KDE_SESSION_VERSION=""` | Prevents KDE-specific Qt version integration hooks. |
+| `QT_QPA_PLATFORMTHEME=""` | Disables the KDE Qt platform theme engine for this process. |
+| `QT_STYLE_OVERRIDE="Fusion"` | Forces Qt to use the clean, neutral **Fusion** widget style. |
+| `PATH="$HOME/bin:$PATH"` | Preserves the `~/bin/kde-open` Firefox authentication workaround. |
+
+### Step 11.2: Check Affected Configuration Pages
+With Packet Tracer open under this environment:
+1. Place a router (e.g. `Router0`) on the workspace.
+2. Click the router and navigate to:
+   - **Config → Routing → Static**
+   - **Config → Routing → RIP**
+   - **Config → Interface**
+3. Verify that all input boxes, table entries, and background text are crisp, clean, and completely readable.
+
+---
+
+## 12. Creating the Permanent Packet Tracer Command
+
+Now that both the browser authentication fix and the Qt Fusion theme fix are verified, combine them into a permanent shell alias.
+
+### Step 12.1: Replace Any Existing Alias in `~/.bashrc`
+Remove any previous simple alias and register the complete environment alias:
+
+```bash
+sed -i '/^alias packettracer=/d' ~/.bashrc
+
+cat >> ~/.bashrc <<'EOF'
+alias packettracer='env XDG_CURRENT_DESKTOP= KDE_FULL_SESSION= KDE_SESSION_VERSION= QT_QPA_PLATFORMTHEME= QT_STYLE_OVERRIDE=Fusion PATH="$HOME/bin:$PATH" "$HOME/Applications/packettracer.AppImage"'
+EOF
+
 source ~/.bashrc
 ```
 
 ### Final Registered Alias:
 ```bash
-alias packettracer='PATH="$HOME/bin:$PATH" "$HOME/Applications/packettracer.AppImage"'
+alias packettracer='env XDG_CURRENT_DESKTOP= KDE_FULL_SESSION= KDE_SESSION_VERSION= QT_QPA_PLATFORMTHEME= QT_STYLE_OVERRIDE=Fusion PATH="$HOME/bin:$PATH" "$HOME/Applications/packettracer.AppImage"'
 ```
 
 ### Launch Packet Tracer:
@@ -295,16 +353,14 @@ alias packettracer='PATH="$HOME/bin:$PATH" "$HOME/Applications/packettracer.AppI
 packettracer
 ```
 
-### Verification:
-1. Packet Tracer launches smoothly.
-2. Click **Cisco Login**.
-3. Firefox immediately opens with the Cisco NetAcad authentication page.
-4. Complete your login credentials in Firefox.
-5. Packet Tracer authenticates, stores your 3-month session, and presents the workspace!
+### Benefits of this Permanent Configuration:
+1. **Your KDE Plasma theme is untouched**: Your desktop stays dark and styled however you like.
+2. **Packet Tracer UI is 100% readable**: Rendered with clean Fusion controls on every dialog.
+3. **Cisco NetAcad login works flawlessly**: Redirects cleanly to Firefox.
 
 ---
 
-## 12. Final Directory Structure
+## 13. Final Directory Structure
 
 The complete filesystem layout for this setup:
 
@@ -320,7 +376,7 @@ The complete filesystem layout for this setup:
 ├── Downloads/
 │   └── CiscoPacketTracer_901_Ubuntu_64bit.deb    # Original downloaded installer
 │
-├── .bashrc                                       # Stores PATH export and packettracer alias
+├── .bashrc                                       # Stores PATH export and permanent packettracer alias
 │
 └── .cache/
     └── yay/
@@ -334,7 +390,7 @@ The complete filesystem layout for this setup:
 
 ---
 
-## 13. Troubleshooting Reference Table
+## 14. Troubleshooting Reference Table
 
 | Symptom / Error | Root Cause | Solution |
 | :--- | :--- | :--- |
@@ -345,12 +401,13 @@ The complete filesystem layout for this setup:
 | `qtpaths: command not found` | Packet Tracer internal scripts search for Qt discovery tools. | Informational warning; installing `qt6-tools` provides system binaries, though warning is non-fatal. |
 | `kde-open: .../libQt6Core.so.6: version Qt_6.12 not found` | Packet Tracer's bundled Qt libraries conflict with KDE's system `kde-open`. | Create the personal `~/bin/kde-open` script that redirects directly to `/usr/bin/firefox`. |
 | `xdg-open` works in shell, but login fails in Packet Tracer | Packet Tracer specifically delegates browser calls through KDE handlers with overridden library paths. | Prepend `PATH="$HOME/bin:$PATH"` when launching the AppImage alias. |
+| **Dark input fields, invisible text on Static Routing/RIP/Config** | Qt theme incompatibility between Packet Tracer 9.x and KDE Plasma color schemes. | Launch with `QT_STYLE_OVERRIDE=Fusion` and disabled KDE session variables in the alias. |
 | Blocked Google / LinkedIn tracking requests in console | Normal Content Security Policy (CSP) / telemetry blocking by network filters. | Non-fatal; safe to ignore. |
 | `index.theme: File exists` | AppImage desktop integration icon cache notification. | Non-fatal; safe to ignore. |
 
 ---
 
-## 14. Uninstallation
+## 15. Uninstallation
 
 To completely remove Cisco Packet Tracer and all associated custom configurations:
 
@@ -380,7 +437,7 @@ nano ~/.bashrc
 Remove the following lines:
 ```bash
 export PATH="$HOME/bin:$PATH"
-alias packettracer='PATH="$HOME/bin:$PATH" "$HOME/Applications/packettracer.AppImage"'
+alias packettracer='env XDG_CURRENT_DESKTOP= KDE_FULL_SESSION= KDE_SESSION_VERSION= QT_QPA_PLATFORMTHEME= QT_STYLE_OVERRIDE=Fusion PATH="$HOME/bin:$PATH" "$HOME/Applications/packettracer.AppImage"'
 ```
 
 ### Step 5: Reload Shell
@@ -390,7 +447,7 @@ source ~/.bashrc
 
 ---
 
-## 15. Security and Licensing Disclaimer
+## 16. Security and Licensing Disclaimer
 
 - **Proprietary Software:** Cisco Packet Tracer is the intellectual property of Cisco Systems, Inc. All rights reserved.
 - **Authorized Acquisition:** Users must download the installation archive directly through Cisco Networking Academy ([netacad.com](https://www.netacad.com/)) using an authorized account.
